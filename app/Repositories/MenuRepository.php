@@ -80,9 +80,6 @@ class MenuRepository implements MenuRepositoryInterface
         return Menu::paginate($perPage);
     }
 
-    /**
-     * Build eager load string for nested relationships
-     */
     private function buildEagerLoadString(int $depth, string $relation = 'children'): string
     {
         if ($depth <= 1) {

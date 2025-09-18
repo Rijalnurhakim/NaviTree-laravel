@@ -9,7 +9,7 @@ use App\Exceptions\MenuValidationException;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Cache; // ✅ TAMBAHKIN IMPORT INI
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 
 class MenuService
@@ -29,7 +29,6 @@ class MenuService
     public function getMenuTree(int $depth = 3, bool $useCache = true): Collection
     {
         if ($useCache) {
-            // Handle caching in service layer instead of repository
             return Cache::remember("menu_tree_depth_{$depth}", 3600, function () use ($depth) {
                 return $this->menuRepository->getTreeWithDepth($depth);
             });
@@ -131,9 +130,6 @@ class MenuService
         return $this->menuRepository->paginate($perPage);
     }
 
-    /**
-     * Validate menu data
-     */
     private function validateMenuData(array $data, ?int $id = null): void
     {
         $rules = [
@@ -142,7 +138,6 @@ class MenuService
             'order' => 'integer|min:0',
         ];
 
-        // Additional validation for update
         if ($id) {
             $rules['parent_id'] = 'nullable|exists:menus,id|not_in:' . $id;
         }
@@ -154,18 +149,13 @@ class MenuService
         }
     }
 
-    /**
-     * Get next order number for a parent
-     */
     private function getNextOrder(?int $parentId = null): int
     {
         $lastOrder = Menu::where('parent_id', $parentId)->max('order');
         return ($lastOrder ?? 0) + 1;
     }
 
-    /**
-     * Clear menu cache
-     */
+
     private function clearMenuCache(): void
     {
         for ($depth = 1; $depth <= 5; $depth++) {

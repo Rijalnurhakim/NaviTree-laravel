@@ -1,17 +1,37 @@
 import React, { useState, useEffect } from "react";
-import MainLayout from "../../Components/MainLayout";
-import MenuTree from "../../Components/MenuTree/MenuTree";
-import MenuModal from "../../Components/MenuTree/MenuModal";
-import { Plus } from "lucide-react";
+import DashboardLayout from "../../Components/DashboardLayout";
+import PageHeader from "../../Components/PageHeader";
+import MenuTreePanel from "../../Components/MenuTree/MenuTreePanel";
+import MenuFormPanel from "../../Components/MenuTree/MenuFormPanel";
+import MobileMenuView from "../../Components/MenuTree/MobileMenuView";
 
 const MenusIndex = () => {
     const [menus, setMenus] = useState([]);
-    const [isModalOpen, setIsModalOpen] = useState(false);
-    const [editingMenu, setEditingMenu] = useState(null);
+    const [selectedMenu, setSelectedMenu] = useState(null);
+    const [isMobile, setIsMobile] = useState(false);
+    const [expandedItems, setExpandedItems] = useState(new Set());
+    const [error, setError] = useState(null);
     const [loading, setLoading] = useState(true);
+    const [formMode, setFormMode] = useState("edit"); // 'edit' or 'create-child'
 
     useEffect(() => {
-        fetchMenus();
+        const initialize = async () => {
+            try {
+                await fetchMenus();
+                const handleResize = () => setIsMobile(window.innerWidth < 768);
+                handleResize();
+                window.addEventListener("resize", handleResize);
+
+                return () => window.removeEventListener("resize", handleResize);
+            } catch (err) {
+                console.error("Initialization error:", err);
+                setError(err.message);
+            } finally {
+                setLoading(false);
+            }
+        };
+
+        initialize();
     }, []);
 
     const fetchMenus = async () => {
@@ -21,103 +41,158 @@ const MenusIndex = () => {
             const data = await response.json();
             if (data.success) {
                 setMenus(data.data);
+            } else {
+                throw new Error(data.message || "Failed to fetch menus");
             }
         } catch (error) {
             console.error("Error fetching menus:", error);
+            setError(error.message);
         } finally {
             setLoading(false);
         }
     };
 
-    const handleCreateMenu = () => {
-        setEditingMenu(null);
-        setIsModalOpen(true);
+    const handleExpandAll = () => {
+        const allIds = new Set();
+        const collectIds = (items) => {
+            items.forEach((item) => {
+                allIds.add(item.id);
+                if (item.children) collectIds(item.children);
+            });
+        };
+        collectIds(menus);
+        setExpandedItems(allIds);
     };
 
-    const handleEditMenu = (menu) => {
-        setEditingMenu(menu);
-        setIsModalOpen(true);
+    const handleCollapseAll = () => {
+        setExpandedItems(new Set());
     };
 
-    const handleModalClose = () => {
-        setIsModalOpen(false);
-        setEditingMenu(null);
-        fetchMenus(); // Refresh data after modal closes
+    const handleMenuSelect = (menu) => {
+        setSelectedMenu(menu);
+        setFormMode("edit"); // Set mode ke edit saat menu dipilih
     };
 
+    const handleAddChild = (parentMenu) => {
+        setSelectedMenu(parentMenu);
+        setFormMode("create-child"); // Set mode ke create-child saat + diklik
+    };
+
+    const handleCancelForm = () => {
+        setSelectedMenu(null);
+        setFormMode("edit");
+    };
+
+    const handleSaveSuccess = () => {
+        fetchMenus();
+        setFormMode("edit");
+        setSelectedMenu(null);
+    };
+
+    // Tampilkan loading state
     if (loading) {
         return (
-            <MainLayout>
-                <div className="flex justify-center items-center h-64">
-                    <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+            <DashboardLayout>
+                <div className="flex items-center justify-center h-screen">
+                    <div className="text-center">
+                        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+                        <p className="text-gray-600">Loading menus...</p>
+                    </div>
                 </div>
-            </MainLayout>
+            </DashboardLayout>
         );
     }
 
-    return (
-        <MainLayout>
-            <div className="bg-white rounded-lg shadow-sm border border-gray-200">
-                {/* Header Section */}
-                <div className="px-6 py-4 border-b border-gray-200">
-                    <div className="flex justify-between items-center">
-                        <div>
-                            <h2 className="text-lg font-semibold text-gray-900">
-                                Menu Structure
-                            </h2>
-                            <p className="text-sm text-gray-600">
-                                Manage your navigation menu hierarchy
-                            </p>
-                        </div>
+    // Tampilkan error jika ada
+    if (error) {
+        return (
+            <DashboardLayout>
+                <div className="flex items-center justify-center h-screen">
+                    <div className="text-center">
+                        <h2 className="text-xl text-red-600 mb-4">
+                            Error Loading Page
+                        </h2>
+                        <p className="text-gray-600">{error}</p>
                         <button
-                            onClick={handleCreateMenu}
-                            className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md flex items-center space-x-2 transition-colors"
+                            onClick={() => window.location.reload()}
+                            className="mt-4 bg-blue-600 text-white px-4 py-2 rounded-lg"
                         >
-                            <Plus size={20} />
-                            <span>Add Menu</span>
+                            Reload Page
                         </button>
                     </div>
                 </div>
+            </DashboardLayout>
+        );
+    }
 
-                {/* Menu Tree Content */}
-                <div className="p-6">
-                    {menus.length === 0 ? (
-                        <div className="text-center py-12">
-                            <div className="text-gray-400 mb-4">
-                                <Plus size={48} className="mx-auto" />
-                            </div>
-                            <h3 className="text-lg font-medium text-gray-900 mb-2">
-                                No menus yet
-                            </h3>
-                            <p className="text-gray-600 mb-4">
-                                Get started by creating your first menu item
-                            </p>
-                            <button
-                                onClick={handleCreateMenu}
-                                className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md"
-                            >
-                                Create First Menu
-                            </button>
-                        </div>
-                    ) : (
-                        <MenuTree
+    // For mobile view
+    if (isMobile) {
+        return (
+            <DashboardLayout>
+                <div className="flex-1 overflow-auto">
+                    <MobileMenuView
+                        menus={menus}
+                        selectedMenu={selectedMenu}
+                        onMenuSelect={handleMenuSelect}
+                        expandedItems={expandedItems}
+                        onToggleExpand={(id) => {
+                            const newExpanded = new Set(expandedItems);
+                            if (newExpanded.has(id)) {
+                                newExpanded.delete(id);
+                            } else {
+                                newExpanded.add(id);
+                            }
+                            setExpandedItems(newExpanded);
+                        }}
+                    />
+                </div>
+            </DashboardLayout>
+        );
+    }
+
+    // Desktop view - 50:50 layout
+    return (
+        <DashboardLayout>
+            <div className="flex-1 flex flex-col overflow-hidden">
+                <PageHeader
+                    title="Menus"
+                    onExpandAll={handleExpandAll}
+                    onCollapseAll={handleCollapseAll}
+                />
+
+                <div className="flex-1 flex overflow-hidden">
+                    {/* Tree Panel - 50% width */}
+                    <div className="w-1/2 overflow-auto">
+                        <MenuTreePanel
                             menus={menus}
-                            onEdit={handleEditMenu}
-                            onRefresh={fetchMenus}
+                            selectedMenu={selectedMenu}
+                            onMenuSelect={handleMenuSelect}
+                            expandedItems={expandedItems}
+                            onToggleExpand={(id) => {
+                                const newExpanded = new Set(expandedItems);
+                                if (newExpanded.has(id)) {
+                                    newExpanded.delete(id);
+                                } else {
+                                    newExpanded.add(id);
+                                }
+                                setExpandedItems(newExpanded);
+                            }}
+                            onAddChild={handleAddChild}
                         />
-                    )}
+                    </div>
+
+                    {/* Form Panel - 50% width */}
+                    <div className="w-1/2 overflow-auto">
+                        <MenuFormPanel
+                            menu={selectedMenu}
+                            onSave={handleSaveSuccess}
+                            onCancel={handleCancelForm}
+                            isCreatingChild={formMode === "create-child"}
+                        />
+                    </div>
                 </div>
             </div>
-
-            {/* Modal for Create/Edit */}
-            {isModalOpen && (
-                <MenuModal
-                    menu={editingMenu}
-                    isOpen={isModalOpen}
-                    onClose={handleModalClose}
-                />
-            )}
-        </MainLayout>
+        </DashboardLayout>
     );
 };
 

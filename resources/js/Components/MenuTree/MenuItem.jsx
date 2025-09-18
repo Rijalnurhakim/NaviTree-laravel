@@ -6,19 +6,43 @@ const MenuItem = ({ menu, level, onEdit, onRefresh }) => {
     const hasChildren = menu.children && menu.children.length > 0;
 
     const handleDelete = async () => {
-        if (window.confirm("Are you sure you want to delete this menu?")) {
+        if (window.confirm(`Are you sure you want to delete "${menu.name}"?`)) {
             try {
                 const response = await fetch(`/api/menus/${menu.id}`, {
                     method: "DELETE",
+                    headers: {
+                        Accept: "application/json",
+                    },
                 });
 
-                if (response.ok) {
+                const data = await response.json();
+
+                if (response.ok && data.success) {
                     onRefresh();
+                } else {
+                    alert(data.message || "Failed to delete menu");
                 }
             } catch (error) {
                 console.error("Error deleting menu:", error);
+                alert("Error deleting menu");
             }
         }
+    };
+
+    const handleAddChild = () => {
+        // Kirim data untuk CREATE child menu, bukan EDIT
+        onEdit({
+            parent_id: menu.id,
+            isNew: true, // Flag untuk menandakan ini create new child
+        });
+    };
+
+    const handleEdit = () => {
+        // Kirim data untuk EDIT menu yang ada
+        onEdit({
+            ...menu,
+            isNew: false, // Flag untuk menandakan ini edit existing
+        });
     };
 
     return (
@@ -52,7 +76,7 @@ const MenuItem = ({ menu, level, onEdit, onRefresh }) => {
 
                 <div className="flex items-center space-x-2">
                     <button
-                        onClick={() => onEdit(menu)}
+                        onClick={handleEdit}
                         className="p-2 text-blue-600 hover:bg-blue-50 rounded transition-colors"
                         title="Edit menu"
                     >
@@ -66,7 +90,7 @@ const MenuItem = ({ menu, level, onEdit, onRefresh }) => {
                         <Trash2 size={16} />
                     </button>
                     <button
-                        onClick={() => onEdit({ parent_id: menu.id })}
+                        onClick={handleAddChild}
                         className="p-2 text-green-600 hover:bg-green-50 rounded transition-colors"
                         title="Add child menu"
                     >
